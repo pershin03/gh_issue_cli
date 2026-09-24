@@ -84,7 +84,6 @@ func createIssue(args []string) error {
 	if err != nil {
 		return err
 	}
-	token := getGithubToken()
 	resp, err := doRequest(http.MethodPost, "https://api.github.com/repos/"+owner+"/"+repo+"/issues", issueRequest{title, body}, token)
 	if err != nil {
 		return err
@@ -150,6 +149,71 @@ func readIssue(args []string) error {
 }
 
 func updateIssue(args []string) error {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	fs.Parse(args)
+
+	positional := fs.Args()
+	if len(positional) < 2 {
+		return fmt.Errorf("usage: gh-issue update owner/repo <num>")
+	}
+	ownerRepo := positional[0]
+	numIssue := positional[1]
+
+	split := strings.SplitN(ownerRepo, "/", 2)
+	if len(split) < 2 {
+		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
+	}
+	owner := split[0]
+	repo := split[1]
+
+	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Error with code %d", resp.StatusCode)
+	}
+
+	respIssue := github.Issue{}
+
+	err = json.NewDecoder(resp.Body).Decode(&respIssue)
+	var data []byte
+	markdownText := fmt.Sprintf("%s\n\n%s", respIssue.Title, respIssue.Body)
+	if err != nil {
+		return err
+	} else {
+		data = []byte(markdownText)
+	}
+
+	currentIssue, err := openEditor(data)
+	if err != nil {
+		return err
+	}
+
+	title, body, err := parseIssue(currentIssue)
+	if err != nil {
+		return err
+	}
+
+	resp, err = doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueRequest{title, body}, token)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Error with status code: %d", resp.StatusCode)
+	}
+
+	respIssue = github.Issue{}
+
+	err = json.NewDecoder(resp.Body).Decode(&respIssue)
+	if err != nil {
+		return err
+	} else {
+		fmt.Println("Update issue number #", respIssue.Number)
+	}
 	return nil
 }
 
@@ -247,8 +311,4 @@ func doRequest(method, url string, body interface{}, token string) (*http.Respon
 	}
 
 	return res, nil
-}
-
-func getGithubToken() string {
-	return os.Getenv("GITHUB_TOKEN")
 }
