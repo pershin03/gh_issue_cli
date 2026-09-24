@@ -121,7 +121,7 @@ func closeIssue(args []string) error {
 	return nil
 }
 
-func openEditor() ([]byte, error) {
+func openEditor(data []byte) ([]byte, error) {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		if runtime.GOOS == "windows" {
@@ -139,6 +139,13 @@ func openEditor() ([]byte, error) {
 	filePath := tempFile.Name()
 
 	defer os.Remove(filePath)
+	if data != nil {
+		_, err := tempFile.Write(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wtite data to temporary file: %w", err)
+		}
+	}
+
 	tempFile.Close()
 
 	var commands []string
