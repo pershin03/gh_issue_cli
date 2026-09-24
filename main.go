@@ -76,7 +76,7 @@ func createIssue(args []string) error {
 	}
 	owner := split[0]
 	repo := split[1]
-	currentIssue, err := openEditor()
+	currentIssue, err := openEditor(nil)
 	if err != nil {
 		return err
 	}
@@ -110,6 +110,42 @@ func createIssue(args []string) error {
 }
 
 func readIssue(args []string) error {
+	fs := flag.NewFlagSet("read", flag.ExitOnError)
+	fs.Parse(args)
+	positional := fs.Args()
+	if len(positional) < 2 {
+		return fmt.Errorf("usage: gh-issue read owner/repo <num>")
+	}
+	ownerRepo := positional[0]
+	numIssue := positional[1]
+
+	split := strings.SplitN(ownerRepo, "/", 2)
+	if len(split) < 2 {
+		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
+	}
+	owner := split[0]
+	repo := split[1]
+
+	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Error with code %d", resp.StatusCode)
+	}
+
+	respIssue := github.Issue{}
+
+	err = json.NewDecoder(resp.Body).Decode(&respIssue)
+	if err != nil {
+		return err
+	} else {
+		fmt.Println(respIssue.Title)
+		fmt.Println(respIssue.Body)
+	}
+
 	return nil
 }
 
