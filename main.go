@@ -117,6 +117,10 @@ func readIssue(args []string) error {
 	}
 	ownerRepo := positional[0]
 	numIssue := positional[1]
+	_, err := strconv.Atoi(numIssue)
+	if err != nil {
+		return fmt.Errorf("invalid number issue format: %q", numIssue)
+	}
 
 	split := strings.SplitN(ownerRepo, "/", 2)
 	if len(split) < 2 {
@@ -158,6 +162,10 @@ func updateIssue(args []string) error {
 	}
 	ownerRepo := positional[0]
 	numIssue := positional[1]
+	_, err := strconv.Atoi(numIssue)
+	if err != nil {
+		return fmt.Errorf("invalid number issue format: %q", numIssue)
+	}
 
 	split := strings.SplitN(ownerRepo, "/", 2)
 	if len(split) < 2 {
