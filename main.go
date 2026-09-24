@@ -71,16 +71,10 @@ func createIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	if len(positional) < 1 {
-		return fmt.Errorf("usage: gh-issue create owner/repo")
+	owner, repo, _, err := parseArgs(positional, "create", 1)
+	if err != nil {
+		return err
 	}
-	ownerRepo := positional[0]
-	split := strings.SplitN(ownerRepo, "/", 2)
-	if len(split) < 2 {
-		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
-	}
-	owner := split[0]
-	repo := split[1]
 	currentIssue, err := openEditor(nil)
 	if err != nil {
 		return err
@@ -117,22 +111,10 @@ func readIssue(args []string) error {
 	fs := flag.NewFlagSet("read", flag.ExitOnError)
 	fs.Parse(args)
 	positional := fs.Args()
-	if len(positional) < 2 {
-		return fmt.Errorf("usage: gh-issue read owner/repo <num>")
-	}
-	ownerRepo := positional[0]
-	numIssue := positional[1]
-	_, err := strconv.Atoi(numIssue)
+	owner, repo, numIssue, err := parseArgs(positional, "read", 2)
 	if err != nil {
-		return fmt.Errorf("invalid number issue format: %q", numIssue)
+		return err
 	}
-
-	split := strings.SplitN(ownerRepo, "/", 2)
-	if len(split) < 2 {
-		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
-	}
-	owner := split[0]
-	repo := split[1]
 
 	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
 	if err != nil {
@@ -162,22 +144,10 @@ func updateIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	if len(positional) < 2 {
-		return fmt.Errorf("usage: gh-issue update owner/repo <num>")
-	}
-	ownerRepo := positional[0]
-	numIssue := positional[1]
-	_, err := strconv.Atoi(numIssue)
+	owner, repo, numIssue, err := parseArgs(positional, "update", 2)
 	if err != nil {
-		return fmt.Errorf("invalid number issue format: %q", numIssue)
+		return err
 	}
-
-	split := strings.SplitN(ownerRepo, "/", 2)
-	if len(split) < 2 {
-		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
-	}
-	owner := split[0]
-	repo := split[1]
 
 	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
 	if err != nil {
@@ -235,23 +205,10 @@ func closeIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	if len(positional) < 2 {
-		return fmt.Errorf("usage: gh-issue close owner/repo <num>")
-	}
-	ownerRepo := positional[0]
-	numIssue := positional[1]
-	_, err := strconv.Atoi(numIssue)
+	owner, repo, numIssue, err := parseArgs(positional, "close", 2)
 	if err != nil {
-		return fmt.Errorf("invalid number issue format: %q", numIssue)
+		return err
 	}
-
-	split := strings.SplitN(ownerRepo, "/", 2)
-	if len(split) < 2 {
-		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
-	}
-
-	owner := split[0]
-	repo := split[1]
 
 	resp, err := doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueClose{"close"}, token)
 	if err != nil {
@@ -358,4 +315,28 @@ func doRequest(method, url string, body interface{}, token string) (*http.Respon
 	}
 
 	return res, nil
+}
+
+func parseArgs(positional []string, method string, numArgs int) (string, string, string, error) {
+	if len(positional) < numArgs {
+		return "", "", "", fmt.Errorf("usage: gh-issue %v owner/repo <num>", method)
+	}
+	ownerRepo := positional[0]
+	var numIssue string
+	if numArgs == 2 {
+		numIssue = positional[1]
+		_, err := strconv.Atoi(numIssue)
+		if err != nil {
+			return "", "", "", fmt.Errorf("invalid number issue format: %q", numIssue)
+		}
+	}
+
+	split := strings.SplitN(ownerRepo, "/", 2)
+	if len(split) < 2 {
+		return "", "", "", fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
+	}
+
+	owner := split[0]
+	repo := split[1]
+	return owner, repo, numIssue, nil
 }
