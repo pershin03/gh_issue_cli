@@ -19,7 +19,15 @@ type issueRequest struct {
 	Body  string `json:"body"`
 }
 
+var token string
+
 func main() {
+	token = os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		fmt.Println("Failed to get token from env")
+		return
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: gh-issue <command> [arguments]")
 		fmt.Fprintln(os.Stderr, "commands: create, read, update, close")
