@@ -11,12 +11,17 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
 type issueRequest struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
+}
+
+type issueClose struct {
+	State string `json:"state"`
 }
 
 var token string
@@ -226,6 +231,40 @@ func updateIssue(args []string) error {
 }
 
 func closeIssue(args []string) error {
+	fs := flag.NewFlagSet("close", flag.ExitOnError)
+	fs.Parse(args)
+
+	positional := fs.Args()
+	if len(positional) < 2 {
+		return fmt.Errorf("usage: gh-issue close owner/repo <num>")
+	}
+	ownerRepo := positional[0]
+	numIssue := positional[1]
+	_, err := strconv.Atoi(numIssue)
+	if err != nil {
+		return fmt.Errorf("invalid number issue format: %q", numIssue)
+	}
+
+	split := strings.SplitN(ownerRepo, "/", 2)
+	if len(split) < 2 {
+		return fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
+	}
+
+	owner := split[0]
+	repo := split[1]
+
+	resp, err := doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueClose{"close"}, token)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Error with status code: %d", resp.StatusCode)
+	} else {
+		fmt.Println("Issue closed, #", numIssue)
+	}
+
 	return nil
 }
 
