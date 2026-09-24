@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type issueRequest struct {
@@ -29,7 +30,7 @@ var token string
 func main() {
 	token = os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		fmt.Println("Failed to get token from env")
+		fmt.Println("failed to get token from env")
 		return
 	}
 
@@ -71,7 +72,7 @@ func createIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	owner, repo, _, err := parseArgs(positional, "create", 1)
+	owner, repo, _, err := parseArgs(positional, "create", false)
 	if err != nil {
 		return err
 	}
@@ -83,16 +84,16 @@ func createIssue(args []string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := doRequest(http.MethodPost, "https://api.github.com/repos/"+owner+"/"+repo+"/issues", issueRequest{title, body}, token)
+	resp, err := doRequest(http.MethodPost, "https://api.github.com/repos/"+owner+"/"+repo+"/issues", issueRequest{title, body})
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusCreated {
-		fmt.Println("Success to create new issue")
+		fmt.Println("success to create new issue")
 	} else {
-		return fmt.Errorf("Error status code %d", resp.StatusCode)
+		return fmt.Errorf("error status code %d", resp.StatusCode)
 	}
 
 	respIssue := github.Issue{}
@@ -101,7 +102,7 @@ func createIssue(args []string) error {
 	if err != nil {
 		return err
 	} else {
-		fmt.Println("Issue number #", respIssue.Number)
+		fmt.Println("issue number #", respIssue.Number)
 	}
 
 	return nil
@@ -111,19 +112,19 @@ func readIssue(args []string) error {
 	fs := flag.NewFlagSet("read", flag.ExitOnError)
 	fs.Parse(args)
 	positional := fs.Args()
-	owner, repo, numIssue, err := parseArgs(positional, "read", 2)
+	owner, repo, numIssue, err := parseArgs(positional, "read", true)
 	if err != nil {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
+	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Error with code %d", resp.StatusCode)
+		return fmt.Errorf("error with code %d", resp.StatusCode)
 	}
 
 	respIssue := github.Issue{}
@@ -144,24 +145,25 @@ func updateIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	owner, repo, numIssue, err := parseArgs(positional, "update", 2)
+	owner, repo, numIssue, err := parseArgs(positional, "update", true)
 	if err != nil {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil, token)
+	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Error with code %d", resp.StatusCode)
+		return fmt.Errorf("error with code %d", resp.StatusCode)
 	}
 
 	respIssue := github.Issue{}
 
 	err = json.NewDecoder(resp.Body).Decode(&respIssue)
+
 	var data []byte
 	markdownText := fmt.Sprintf("%s\n\n%s", respIssue.Title, respIssue.Body)
 	if err != nil {
@@ -180,13 +182,14 @@ func updateIssue(args []string) error {
 		return err
 	}
 
-	resp, err = doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueRequest{title, body}, token)
+	resp, err = doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueRequest{title, body})
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Error with status code: %d", resp.StatusCode)
+		return fmt.Errorf("error with status code: %d", resp.StatusCode)
 	}
 
 	respIssue = github.Issue{}
@@ -195,7 +198,7 @@ func updateIssue(args []string) error {
 	if err != nil {
 		return err
 	} else {
-		fmt.Println("Update issue number #", respIssue.Number)
+		fmt.Println("update issue number #", respIssue.Number)
 	}
 	return nil
 }
@@ -205,21 +208,21 @@ func closeIssue(args []string) error {
 	fs.Parse(args)
 
 	positional := fs.Args()
-	owner, repo, numIssue, err := parseArgs(positional, "close", 2)
+	owner, repo, numIssue, err := parseArgs(positional, "close", true)
 	if err != nil {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueClose{"close"}, token)
+	resp, err := doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueClose{"close"})
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Error with status code: %d", resp.StatusCode)
+		return fmt.Errorf("error with status code: %d", resp.StatusCode)
 	} else {
-		fmt.Println("Issue closed, #", numIssue)
+		fmt.Println("issue closed, #", numIssue)
 	}
 
 	return nil
@@ -246,7 +249,7 @@ func openEditor(data []byte) ([]byte, error) {
 	if data != nil {
 		_, err := tempFile.Write(data)
 		if err != nil {
-			return nil, fmt.Errorf("failed to wtite data to temporary file: %w", err)
+			return nil, fmt.Errorf("failed to write data to temporary file: %w", err)
 		}
 	}
 
@@ -267,12 +270,12 @@ func openEditor(data []byte) ([]byte, error) {
 
 	err = cmd.Run()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to run editor: %w", err)
+		return nil, fmt.Errorf("failed to run editor: %w", err)
 	}
 
 	issueData, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read data from file: %w", err)
+		return nil, fmt.Errorf("failed to read data from file: %w", err)
 	}
 
 	return issueData, nil
@@ -292,7 +295,7 @@ func parseIssue(data []byte) (title, body string, err error) {
 	return string(data), "", nil
 }
 
-func doRequest(method, url string, body interface{}, token string) (*http.Response, error) {
+func doRequest(method, url string, body interface{}) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -303,23 +306,35 @@ func doRequest(method, url string, body interface{}, token string) (*http.Respon
 	}
 	req, err := http.NewRequest(method, url, reader)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new request %w", err)
+		return nil, fmt.Errorf("failed to create new request %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	res, err := http.DefaultClient.Do(req)
+	client := http.Client{Timeout: 10 * time.Second}
+
+	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to send new reques %w", err)
+		return nil, fmt.Errorf("failed to send new request %w", err)
 	}
 
 	return res, nil
 }
 
-func parseArgs(positional []string, method string, numArgs int) (string, string, string, error) {
+func parseArgs(positional []string, method string, needNumber bool) (string, string, string, error) {
+	numArgs := 0
+	if needNumber {
+		numArgs = 2
+	} else {
+		numArgs = 1
+	}
+	usage := fmt.Sprintf("usage: gh-issue %v owner/repo", method)
+	if needNumber {
+		usage += " <num>"
+	}
 	if len(positional) < numArgs {
-		return "", "", "", fmt.Errorf("usage: gh-issue %v owner/repo <num>", method)
+		return "", "", "", fmt.Errorf(usage)
 	}
 	ownerRepo := positional[0]
 	var numIssue string
