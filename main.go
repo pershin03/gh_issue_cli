@@ -16,15 +16,6 @@ import (
 	"time"
 )
 
-type issueRequest struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-}
-
-type issueClose struct {
-	State string `json:"state"`
-}
-
 var token string
 
 func main() {
@@ -43,31 +34,33 @@ func main() {
 	cmd := os.Args[1]
 	args := os.Args[2:]
 
+	client := github.NewClient(token)
+
 	switch cmd {
 	case "create":
-		err := createIssue(args)
+		err := createIssue(args, client)
 		if err != nil {
 			fmt.Println(err)
 		}
 	case "read":
-		err := readIssue(args)
+		err := readIssue(args, client)
 		if err != nil {
 			fmt.Println(err)
 		}
 	case "update":
-		err := updateIssue(args)
+		err := updateIssue(args, client)
 		if err != nil {
 			fmt.Println(err)
 		}
 	case "close":
-		err := closeIssue(args)
+		err := closeIssue(args, client)
 		if err != nil {
 			fmt.Println(err)
 		}
 	}
 }
 
-func createIssue(args []string) error {
+func createIssue(args []string, client *github.Client) error {
 	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	fs.Parse(args)
 
@@ -84,31 +77,18 @@ func createIssue(args []string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := doRequest(http.MethodPost, "https://api.github.com/repos/"+owner+"/"+repo+"/issues", issueRequest{title, body})
+
+	issue, err := client.CreateIssue(owner, repo, title, body)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusCreated {
-		fmt.Println("success to create new issue")
-	} else {
-		return fmt.Errorf("error status code %d", resp.StatusCode)
-	}
-
-	respIssue := github.Issue{}
-
-	err = json.NewDecoder(resp.Body).Decode(&respIssue)
-	if err != nil {
-		return err
-	} else {
-		fmt.Println("issue number #", respIssue.Number)
-	}
+	fmt.Printf("issue #%d created successfully\n", issue.Number)
 
 	return nil
 }
 
-func readIssue(args []string) error {
+func readIssue(args []string, client *github.Client) error {
 	fs := flag.NewFlagSet("read", flag.ExitOnError)
 	fs.Parse(args)
 	positional := fs.Args()
@@ -117,30 +97,16 @@ func readIssue(args []string) error {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil)
+	issue, err := client.ReadIssue(owner, repo, numIssue)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error with code %d", resp.StatusCode)
-	}
-
-	respIssue := github.Issue{}
-
-	err = json.NewDecoder(resp.Body).Decode(&respIssue)
-	if err != nil {
-		return err
-	} else {
-		fmt.Println(respIssue.Title)
-		fmt.Println(respIssue.Body)
-	}
+	fmt.Printf("Issue #%d\n%v\n%v\n", issue.Number, issue.Title, issue.Body)
 
 	return nil
 }
 
-func updateIssue(args []string) error {
+func updateIssue(args []string, client *github.Client) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	fs.Parse(args)
 
@@ -150,22 +116,13 @@ func updateIssue(args []string) error {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodGet, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, nil)
+	issue, err := client.ReadIssue(owner, repo, numIssue)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error with code %d", resp.StatusCode)
-	}
-
-	respIssue := github.Issue{}
-
-	err = json.NewDecoder(resp.Body).Decode(&respIssue)
 
 	var data []byte
-	markdownText := fmt.Sprintf("%s\n\n%s", respIssue.Title, respIssue.Body)
+	markdownText := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Body)
 	if err != nil {
 		return err
 	} else {
@@ -182,28 +139,16 @@ func updateIssue(args []string) error {
 		return err
 	}
 
-	resp, err = doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueRequest{title, body})
+	issue, err = client.UpdateIssue(owner, repo, numIssue, title, body)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	fmt.Printf("issue #%d successfully updated", issue.Number)
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error with status code: %d", resp.StatusCode)
-	}
-
-	respIssue = github.Issue{}
-
-	err = json.NewDecoder(resp.Body).Decode(&respIssue)
-	if err != nil {
-		return err
-	} else {
-		fmt.Println("update issue number #", respIssue.Number)
-	}
 	return nil
 }
 
-func closeIssue(args []string) error {
+func closeIssue(args []string, client *github.Client) error {
 	fs := flag.NewFlagSet("close", flag.ExitOnError)
 	fs.Parse(args)
 
@@ -213,17 +158,12 @@ func closeIssue(args []string) error {
 		return err
 	}
 
-	resp, err := doRequest(http.MethodPatch, "https://api.github.com/repos/"+owner+"/"+repo+"/issues/"+numIssue, issueClose{"close"})
+	err = client.CloseIssue(owner, repo, numIssue)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error with status code: %d", resp.StatusCode)
-	} else {
-		fmt.Println("issue closed, #", numIssue)
-	}
+	fmt.Printf("Issue #%d closed", numIssue)
 
 	return nil
 }
@@ -295,7 +235,7 @@ func parseIssue(data []byte) (title, body string, err error) {
 	return string(data), "", nil
 }
 
-func doRequest(method, url string, body interface{}) (*http.Response, error) {
+func doRequest(method, url string, body any) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -322,7 +262,7 @@ func doRequest(method, url string, body interface{}) (*http.Response, error) {
 	return res, nil
 }
 
-func parseArgs(positional []string, method string, needNumber bool) (string, string, string, error) {
+func parseArgs(positional []string, method string, needNumber bool) (string, string, int, error) {
 	numArgs := 0
 	if needNumber {
 		numArgs = 2
@@ -333,25 +273,26 @@ func parseArgs(positional []string, method string, needNumber bool) (string, str
 	if needNumber {
 		usage += " <num>"
 	}
-	if len(positional) < numArgs {
-		return "", "", "", fmt.Errorf(usage)
+	if len(positional) != numArgs {
+		return "", "", 0, fmt.Errorf(usage)
 	}
 	ownerRepo := positional[0]
-	var numIssue string
+	var num int
+	var err error
 	if numArgs == 2 {
-		numIssue = positional[1]
-		_, err := strconv.Atoi(numIssue)
+		numIssueStr := positional[1]
+		num, err = strconv.Atoi(numIssueStr)
 		if err != nil {
-			return "", "", "", fmt.Errorf("invalid number issue format: %q", numIssue)
+			return "", "", 0, fmt.Errorf("invalid number issue format: %q", numIssueStr)
 		}
 	}
 
 	split := strings.SplitN(ownerRepo, "/", 2)
 	if len(split) < 2 {
-		return "", "", "", fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
+		return "", "", 0, fmt.Errorf("invalid owner/repo format: %q", ownerRepo)
 	}
 
 	owner := split[0]
 	repo := split[1]
-	return owner, repo, numIssue, nil
+	return owner, repo, num, nil
 }
