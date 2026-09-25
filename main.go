@@ -2,18 +2,14 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"issueCLI/github"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var token string
@@ -121,13 +117,8 @@ func updateIssue(args []string, client *github.Client) error {
 		return err
 	}
 
-	var data []byte
-	markdownText := fmt.Sprintf("%s\n\n%s", issue.Title, issue.Body)
-	if err != nil {
-		return err
-	} else {
-		data = []byte(markdownText)
-	}
+	markdownText := fmt.Sprintf("%s\n%s", issue.Title, issue.Body)
+	data := []byte(markdownText)
 
 	currentIssue, err := openEditor(data)
 	if err != nil {
@@ -233,33 +224,6 @@ func parseIssue(data []byte) (title, body string, err error) {
 	}
 
 	return string(data), "", nil
-}
-
-func doRequest(method, url string, body any) (*http.Response, error) {
-	var reader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		reader = bytes.NewReader(data)
-	}
-	req, err := http.NewRequest(method, url, reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new request %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	client := http.Client{Timeout: 10 * time.Second}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send new request %w", err)
-	}
-
-	return res, nil
 }
 
 func parseArgs(positional []string, method string, needNumber bool) (string, string, int, error) {
